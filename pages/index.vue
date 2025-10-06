@@ -7,8 +7,71 @@
         <p class="text-gray-600">支援英文、日語、繁體中文、簡體中文、法文翻譯</p>
       </div>
 
-      <!-- Main Content -->
-      <div class="max-w-4xl mx-auto">
+      <!-- Main Layout with Sidebar -->
+      <div class="flex gap-6 max-w-7xl mx-auto">
+        <!-- History Sidebar -->
+        <div class="w-80 flex-shrink-0">
+          <div class="bg-white rounded-lg shadow-lg p-4 sticky top-8 max-h-[calc(100vh-8rem)] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-bold text-gray-800">📜 翻譯歷史</h2>
+              <button
+                v-if="history.length > 0"
+                @click="clearHistory"
+                class="text-sm text-red-600 hover:text-red-700 font-medium"
+                title="清空歷史"
+              >
+                清空
+              </button>
+            </div>
+
+            <!-- History List -->
+            <div v-if="history.length > 0" class="space-y-3">
+              <div
+                v-for="(item, index) in history"
+                :key="index"
+                @click="loadHistoryItem(item)"
+                class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 cursor-pointer transition duration-200 hover:border-blue-300"
+              >
+                <div class="flex items-start justify-between mb-2">
+                  <p class="text-xs text-gray-500">{{ item.timestamp }}</p>
+                  <button
+                    @click.stop="deleteHistoryItem(index)"
+                    class="text-gray-400 hover:text-red-600"
+                    title="刪除"
+                  >
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>
+                  </button>
+                </div>
+                <p class="text-sm text-gray-800 font-medium line-clamp-2 mb-2">
+                  {{ item.inputText }}
+                </p>
+                <div class="flex flex-wrap gap-1">
+                  <span
+                    v-for="lang in item.languages"
+                    :key="lang"
+                    class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded"
+                  >
+                    {{ lang }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-8 text-gray-400">
+              <svg class="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+              </svg>
+              <p class="text-sm">還沒有翻譯記錄</p>
+              <p class="text-xs mt-1">開始翻譯來建立歷史</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 min-w-0">
         <!-- Input Section -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div class="mb-4">
@@ -107,6 +170,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -123,10 +187,38 @@ interface Language {
   flag: string
 }
 
+interface HistoryItem {
+  inputText: string
+  translations: Translation[]
+  timestamp: string
+  languages: string[]
+}
+
 const inputText = ref('')
 const translations = ref<Translation[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
+const history = ref<HistoryItem[]>([
+  // Mock data for demonstration
+  {
+    inputText: 'Hello, how are you?',
+    translations: [],
+    timestamp: '2025-10-06 14:30',
+    languages: ['英文', '日語', '繁中', '簡中', '法文']
+  },
+  {
+    inputText: 'This is a test translation',
+    translations: [],
+    timestamp: '2025-10-06 14:25',
+    languages: ['英文', '日語', '繁中', '簡中', '法文']
+  },
+  {
+    inputText: '早安，今天天氣很好',
+    translations: [],
+    timestamp: '2025-10-06 14:20',
+    languages: ['英文', '日語', '繁中', '簡中', '法文']
+  }
+])
 
 const hasQuotaLimitError = computed(() => {
   return translations.value.some(t => 
@@ -178,11 +270,34 @@ const translateText = async () => {
     // 等待所有翻譯完成
     translations.value = await Promise.all(translationPromises)
 
+    // TODO: Save to history after successful translation
+    // This will be implemented when backend functionality is added
+
   } catch (error: any) {
     console.error('翻譯過程中發生錯誤:', error)
     errorMessage.value = `翻譯失敗: ${error.message || '未知錯誤'}`
   } finally {
     isLoading.value = false
+  }
+}
+
+// History management functions
+const loadHistoryItem = (item: HistoryItem) => {
+  inputText.value = item.inputText
+  translations.value = item.translations
+  // Scroll to top of page to see results
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const deleteHistoryItem = (index: number) => {
+  // TODO: Add backend API call to delete from database
+  history.value.splice(index, 1)
+}
+
+const clearHistory = () => {
+  if (confirm('確定要清空所有翻譯歷史嗎？')) {
+    // TODO: Add backend API call to clear all history
+    history.value = []
   }
 }
 </script>
