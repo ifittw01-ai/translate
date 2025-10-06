@@ -21,6 +21,7 @@
   "optionalDependencies": {
     "@oxc-minify/binding-linux-x64-gnu": "^0.93.0",
     "@oxc-parser/binding-linux-x64-gnu": "^0.93.0",
+    "@oxc-resolver/binding-linux-x64-gnu": "^11.9.0",
     "@oxc-transform/binding-linux-x64-gnu": "^0.93.0",
     "@rollup/rollup-linux-x64-gnu": "^4.52.4"
   }
