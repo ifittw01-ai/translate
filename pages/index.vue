@@ -27,15 +27,15 @@
             <!-- History List -->
             <div v-if="history.length > 0" class="space-y-3">
               <div
-                v-for="(item, index) in history"
-                :key="index"
+                v-for="item in history"
+                :key="item.id"
                 @click="loadHistoryItem(item)"
                 class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 cursor-pointer transition duration-200 hover:border-blue-300"
               >
                 <div class="flex items-start justify-between mb-2">
-                  <p class="text-xs text-gray-500">{{ item.timestamp }}</p>
+                  <p class="text-xs text-gray-500">{{ formatTimestamp(item.timestamp) }}</p>
                   <button
-                    @click.stop="deleteHistoryItem(index)"
+                    @click.stop="deleteHistoryItem(item)"
                     class="text-gray-400 hover:text-red-600"
                     title="刪除"
                   >
@@ -45,15 +45,15 @@
                   </button>
                 </div>
                 <p class="text-sm text-gray-800 font-medium line-clamp-2 mb-2">
-                  {{ item.inputText }}
+                  {{ item.input_text }}
                 </p>
                 <div class="flex flex-wrap gap-1">
                   <span
-                    v-for="lang in item.languages"
-                    :key="lang"
+                    v-for="translation in item.translations.slice(0, 5)"
+                    :key="translation.language"
                     class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded"
                   >
-                    {{ lang }}
+                    {{ translation.flag }} {{ translation.language }}
                   </span>
                 </div>
               </div>
@@ -188,37 +188,19 @@ interface Language {
 }
 
 interface HistoryItem {
-  inputText: string
+  id: number
+  input_text: string
   translations: Translation[]
   timestamp: string
-  languages: string[]
+  languages?: string[]
 }
 
 const inputText = ref('')
 const translations = ref<Translation[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
-const history = ref<HistoryItem[]>([
-  // Mock data for demonstration
-  {
-    inputText: 'Hello, how are you?',
-    translations: [],
-    timestamp: '2025-10-06 14:30',
-    languages: ['英文', '日語', '繁中', '簡中', '法文']
-  },
-  {
-    inputText: 'This is a test translation',
-    translations: [],
-    timestamp: '2025-10-06 14:25',
-    languages: ['英文', '日語', '繁中', '簡中', '法文']
-  },
-  {
-    inputText: '早安，今天天氣很好',
-    translations: [],
-    timestamp: '2025-10-06 14:20',
-    languages: ['英文', '日語', '繁中', '簡中', '法文']
-  }
-])
+const history = ref<HistoryItem[]>([])
+const isLoadingHistory = ref(false)
 
 const hasQuotaLimitError = computed(() => {
   return translations.value.some(t => 
@@ -270,8 +252,21 @@ const translateText = async () => {
     // 等待所有翻譯完成
     translations.value = await Promise.all(translationPromises)
 
-    // TODO: Save to history after successful translation
-    // This will be implemented when backend functionality is added
+    // Save to history after successful translation
+    try {
+      await $fetch('/api/history/save', {
+        method: 'POST',
+        body: {
+          inputText: inputText.value,
+          translations: translations.value
+        }
+      })
+      // Reload history to show the new entry
+      await loadHistory()
+    } catch (saveError: any) {
+      console.error('Failed to save history:', saveError)
+      // Don't show error to user, translation was successful
+    }
 
   } catch (error: any) {
     console.error('翻譯過程中發生錯誤:', error)
@@ -281,24 +276,71 @@ const translateText = async () => {
   }
 }
 
+// Load history from database
+const loadHistory = async () => {
+  isLoadingHistory.value = true
+  try {
+    const result = await $fetch('/api/history/load')
+    if (result.success && result.data) {
+      history.value = result.data
+    }
+  } catch (error: any) {
+    console.error('Failed to load history:', error)
+    errorMessage.value = '載入歷史記錄失敗'
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
 // History management functions
 const loadHistoryItem = (item: HistoryItem) => {
-  inputText.value = item.inputText
+  inputText.value = item.input_text
   translations.value = item.translations
   // Scroll to top of page to see results
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const deleteHistoryItem = (index: number) => {
-  // TODO: Add backend API call to delete from database
-  history.value.splice(index, 1)
-}
-
-const clearHistory = () => {
-  if (confirm('確定要清空所有翻譯歷史嗎？')) {
-    // TODO: Add backend API call to clear all history
-    history.value = []
+const deleteHistoryItem = async (item: HistoryItem) => {
+  try {
+    await $fetch(`/api/history/delete?id=${item.id}`, {
+      method: 'DELETE'
+    })
+    // Remove from local history
+    history.value = history.value.filter(h => h.id !== item.id)
+  } catch (error: any) {
+    console.error('Failed to delete history item:', error)
+    errorMessage.value = '刪除失敗'
   }
 }
+
+const clearHistory = async () => {
+  if (confirm('確定要清空所有翻譯歷史嗎？')) {
+    try {
+      await $fetch('/api/history/clear', {
+        method: 'DELETE'
+      })
+      history.value = []
+    } catch (error: any) {
+      console.error('Failed to clear history:', error)
+      errorMessage.value = '清空歷史失敗'
+    }
+  }
+}
+
+// Format timestamp for display
+const formatTimestamp = (timestamp: string) => {
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// Load history on component mount
+onMounted(() => {
+  loadHistory()
+})
 </script>
 
