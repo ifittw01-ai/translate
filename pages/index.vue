@@ -228,9 +228,14 @@ const translateText = async () => {
       { code: 'fr', name: '法文', flag: '🇫🇷' }
     ]
 
-    // 為每種語言創建翻譯請求
-    const translationPromises = languages.map(async (lang) => {
+    // 為每種語言創建翻譯請求（帶延遲以避免速率限制）
+    const translationPromises = languages.map(async (lang, index) => {
       try {
+        // 為避免 429 錯誤，在每個請求之間加入延遲
+        if (index > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * index))
+        }
+        
         const result = await $fetch<Translation>('/api/translate', {
           method: 'POST',
           body: {
